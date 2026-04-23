@@ -1,0 +1,75 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Verify with Maven 4
+
+on:
+  push:
+    branches:
+      - master
+      - 'feature/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Maven 4 - JDK ${{ matrix.jdk }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        jdk: ['17', '21']
+    env:
+      MAVEN_VERSION: '4.0.0-rc-5'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.jdk }}
+          distribution: temurin
+
+      - name: Install Maven ${{ env.MAVEN_VERSION }}
+        run: |
+          curl -sL "https://archive.apache.org/dist/maven/maven-4/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" \
+            | tar xz -C /opt
+          echo "/opt/apache-maven-${MAVEN_VERSION}/bin" >> "$GITHUB_PATH"
+          echo "MAVEN_HOME=/opt/apache-maven-${MAVEN_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Verify Maven version
+        run: mvn --version
+
+      - name: Build and install (skip tests)
+        run: mvn clean install -DskipTests -nsu -e -B
+
+      - name: Run integration tests
+        run: mvn verify -P run-its -nsu -e -B -pl surefire-its
+        timeout-minutes: 120
+
+      - name: Upload failure reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven4-it-reports-jdk${{ matrix.jdk }}-${{ matrix.os }}
+          path: |
+            surefire-its/target/failsafe-reports/
+            surefire-its/target/ModulePathWhitebox*/
+          retention-days: 7
