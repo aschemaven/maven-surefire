@@ -2251,6 +2251,32 @@ public abstract class AbstractSurefireMojo extends AbstractMojo implements Suref
             List<ResolvePathResult> additionalModules,
             String javaHome)
             throws IOException {
+        Maven4DispatchedPaths dispatched =
+                Maven4DispatchedPaths.tryResolve(getSession(), getProject(), getConsoleLogger());
+        if (dispatched != null) {
+            // Maven 4: consume the class-path/module-path separation decided by core
+            // (per-dependency <type> declaration) — the same separation the compiler
+            // used. The project's own build outputs are not dependencies, so they are
+            // added here: the main output to the module path, the test output to the
+            // classpath (tests are patched into the module). The module descriptors are
+            // still resolved plugin-side: the reverse requires closure over the provider
+            // classpath and the --add-opens targets need the module names.
+            List<String> classpathElements = new ArrayList<>(dispatched.getClasspathElements());
+            List<String> modulepathElements = new ArrayList<>(dispatched.getModulepathElements());
+            String testClassesDir = getTestClassesDirectory().getAbsolutePath();
+            if (!classpathElements.contains(testClassesDir)) {
+                classpathElements.add(0, testClassesDir);
+            }
+            String mainBuildDir = getMainBuildPath().getAbsolutePath();
+            if (!modulepathElements.contains(mainBuildDir)) {
+                modulepathElements.add(0, mainBuildDir);
+            }
+            Map<String, JavaModuleDescriptor> elementDescriptors = resolveTestClasspath(
+                            testClasspath.getClassPath(), javaModuleDescriptor, javaHome)
+                    .getPathElements();
+            return new ModulePathSplit(
+                    new Classpath(classpathElements), new Classpath(modulepathElements), elementDescriptors);
+        }
         if (additionalModules.isEmpty()) {
             ResolvePathsResult<String> result =
                     resolveTestClasspath(testClasspath.getClassPath(), javaModuleDescriptor, javaHome);
@@ -2476,6 +2502,17 @@ public abstract class AbstractSurefireMojo extends AbstractMojo implements Suref
             throws IOException {
         Set<String> movedModules = new LinkedHashSet<>(moveHandoffModulesToModulePath(
                 moduleInfoPatchArgs.getAddedModules(), classpathElements, modulepathElements, elementDescriptors));
+
+        // Seed with the modules already sitting on the module path: under the Maven 4
+        // core dispatch the test-scope dependencies arrive there without any plugin-side
+        // move, but classpath consumers requiring them must follow into the named world
+        // (and the --add-opens targets must name them) all the same.
+        for (String element : modulepathElements) {
+            JavaModuleDescriptor descriptor = elementDescriptors.get(element);
+            if (descriptor != null && descriptor.name() != null) {
+                movedModules.add(descriptor.name());
+            }
+        }
 
         // No classpath element may require a module that just moved (e.g.
         // junit-platform-launcher uses internals of org.junit.platform.commons; the two
