@@ -64,14 +64,6 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <!-- Maven 4 delegate (Java 17 bytecode): sits in the plugin realm but is only
-           loaded when running under Maven 4 — Maven 3 never touches these classes -->
-      <groupId>org.apache.maven.surefire</groupId>
-      <artifactId>surefire-maven4</artifactId>
-      <version>${project.version}</version>
-      <scope>runtime</scope>
-    </dependency>
-    <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-plugin-api</artifactId>
       <scope>provided</scope>
@@ -142,5 +134,26 @@
       </plugin>
     </plugins>
   </reporting>
+
+  <profiles>
+    <profile>
+      <!-- Maven 4 delegate (Java 17 bytecode): sits in the plugin realm but is only
+           loaded when running under Maven 4 — Maven 3 never touches these classes.
+           JDK-gated so builds on older JDKs (CI matrix legs 8/11) skip it; the runtime
+           dispatch guard then finds no provider and falls back to Maven 3 behavior. -->
+      <id>maven4-delegate</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.maven.surefire</groupId>
+          <artifactId>surefire-maven4</artifactId>
+          <version>${project.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
 
 </project>

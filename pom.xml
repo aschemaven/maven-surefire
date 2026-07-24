@@ -57,7 +57,6 @@
     <module>surefire-providers</module>
     <module>surefire-shadefire</module>
     <module>maven-surefire-common</module>
-    <module>surefire-maven4</module>
     <module>surefire-report-parser</module>
     <module>maven-surefire-plugin</module>
     <module>maven-failsafe-plugin</module>
@@ -515,6 +514,18 @@
   </reporting>
 
   <profiles>
+    <profile>
+      <!-- The Maven 4 delegate needs the Java 17 baseline of the Maven 4 API; on older
+           build JDKs (CI matrix legs 8/11) the module is simply not built — the runtime
+           dispatch guard then finds no provider and falls back to Maven 3 behavior. -->
+      <id>maven4-delegate</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <modules>
+        <module>surefire-maven4</module>
+      </modules>
+    </profile>
     <profile>
       <!-- First, install the project without tests -> mvn install -DskipTests
         This is a workaround for IntelliJ IDEA, see https://youtrack.jetbrains.com/issue/IDEA-148573
