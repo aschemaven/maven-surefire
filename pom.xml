@@ -57,6 +57,7 @@
     <module>surefire-providers</module>
     <module>surefire-shadefire</module>
     <module>maven-surefire-common</module>
+    <module>surefire-maven4</module>
     <module>surefire-report-parser</module>
     <module>maven-surefire-plugin</module>
     <module>maven-failsafe-plugin</module>
@@ -276,6 +277,28 @@
   <build>
     <pluginManagement>
       <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <executions>
+            <execution>
+              <id>enforce-bytecode-version</id>
+              <configuration>
+                <rules>
+                  <enforceBytecodeVersion>
+                    <maxJdkVersion>${javaVersion}</maxJdkVersion>
+                    <ignoredScopes>test</ignoredScopes>
+                    <excludes>
+                      <!-- Java 17 by design: the Maven 4 delegate is only loaded under Maven 4 -->
+                      <exclude>org.apache.maven.surefire:surefire-maven4</exclude>
+                    </excludes>
+                  </enforceBytecodeVersion>
+                </rules>
+                <fail>true</fail>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
